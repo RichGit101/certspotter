@@ -23,6 +23,7 @@ import (
 	"software.sslmate.com/src/certspotter/ct"
 )
 
+var maxPerLog = flag.Int64("max_per_log", -1, "Max number of entries to fetch from one log per run")
 var batchSize = flag.Int("batch_size", 1000, "Max number of entries to request at per call to get-entries (advanced)")
 var numWorkers = flag.Int("num_workers", 2, "Number of concurrent matchers (advanced)")
 var script = flag.String("script", "", "Script to execute when a matching certificate is found")
@@ -222,15 +223,23 @@ func (ctlog *logHandle) scan(processCallback certspotter.ProcessCallback) error 
 	endIndex := int64(ctlog.verifiedSTH.TreeSize)
 
 	if endIndex > startIndex {
+		if *maxPerLog != -1 {
+			if endIndex-startIndex > *maxPerLog {
+				endIndex = startIndex + *maxPerLog
+			}
+		}
+
 		tree := certspotter.CloneCollapsedMerkleTree(ctlog.tree)
 
 		if err := ctlog.scanner.Scan(startIndex, endIndex, processCallback, tree); err != nil {
 			return fmt.Errorf("Error scanning log (if this error persists, it should be construed as misbehavior by the log): %s", err)
 		}
 
-		rootHash := tree.CalculateRoot()
-		if !bytes.Equal(rootHash, ctlog.verifiedSTH.SHA256RootHash[:]) {
-			return fmt.Errorf("Log has misbehaved: log entries at tree size %d do not correspond to signed tree root", ctlog.verifiedSTH.TreeSize)
+		if *maxPerLog == -1 {
+			rootHash := tree.CalculateRoot()
+			if !bytes.Equal(rootHash, ctlog.verifiedSTH.SHA256RootHash[:]) {
+				return fmt.Errorf("Log has misbehaved: log entries at tree size %d do not correspond to signed tree root", ctlog.verifiedSTH.TreeSize)
+			}
 		}
 
 		ctlog.tree = tree
