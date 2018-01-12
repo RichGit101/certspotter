@@ -223,9 +223,11 @@ func (ctlog *logHandle) scan(processCallback certspotter.ProcessCallback) error 
 	endIndex := int64(ctlog.verifiedSTH.TreeSize)
 
 	if endIndex > startIndex {
+	    endIndexLimited := false
 		if *maxPerLog != -1 {
 			if endIndex-startIndex > *maxPerLog {
 				endIndex = startIndex + *maxPerLog
+				endIndexLimited = true
 			}
 		}
 
@@ -235,7 +237,7 @@ func (ctlog *logHandle) scan(processCallback certspotter.ProcessCallback) error 
 			return fmt.Errorf("Error scanning log (if this error persists, it should be construed as misbehavior by the log): %s", err)
 		}
 
-		if *maxPerLog == -1 {
+		if !endIndexLimited {
 			rootHash := tree.CalculateRoot()
 			if !bytes.Equal(rootHash, ctlog.verifiedSTH.SHA256RootHash[:]) {
 				return fmt.Errorf("Log has misbehaved: log entries at tree size %d do not correspond to signed tree root", ctlog.verifiedSTH.TreeSize)
